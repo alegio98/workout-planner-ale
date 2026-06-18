@@ -85,57 +85,6 @@ workout-planner-ale/
 └── README.md
 ```
 
-## Modello dati
-
-Il progetto distingue tra scheda originale e sessione programmata.
-
-### Scheda
-
-La scheda è il modello modificabile dell’utente.
-
-```text
-WorkoutPlan
- └── PlanDay[]
-      └── PlanExercise[]
-           └── PlannedSet[]
-```
-
-### Sessione
-
-Quando una giornata viene assegnata al calendario, viene creata una copia indipendente.
-
-```text
-WorkoutSession
- └── SessionExercise[]
-      └── SessionSet[]
-```
-
-Questo permette di modificare un singolo allenamento senza cambiare la scheda originale.
-
-## Serie standard e personalizzate
-
-Gli esercizi supportano:
-
-```text
-Standard
-4 × 8
-```
-
-oppure:
-
-```text
-Piramidale
-10 - 8 - 8 - 6
-```
-
-Ogni serie può contenere:
-
-- ripetizioni programmate;
-- peso programmato;
-- ripetizioni eseguite;
-- peso eseguito;
-- stato completato o saltato.
-
 ## Persistenza locale
 
 I dati vengono salvati in IndexedDB.
@@ -210,15 +159,6 @@ Genera la build di produzione nella cartella `dist`.
 ```bash
 npm run preview
 ```
-
-## Limiti noti
-
-- nessuna sincronizzazione cloud;
-- nessun account utente;
-- dati legati al browser;
-- nessun backup automatico;
-- possibili differenze tra Safari, Chrome e browser Android;
-- il progetto è ancora in evoluzione.
 
 ## Autore
 
