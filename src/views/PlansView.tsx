@@ -8,7 +8,6 @@ import {
   Edit3,
   FileText,
   GripVertical,
-  MoreHorizontal,
   Plus,
   Trash2,
   UserRound,
@@ -323,16 +322,6 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
     if (!selectedPlan || !selectedDay || !window.confirm(`Eliminare “${selectedDay.name}”?`)) return
     const days = normalizeOrders(sortedDays(selectedPlan).filter((day) => day.id !== selectedDay.id))
     await persistPlan({ ...selectedPlan, days }, 'Giornata eliminata.')
-  }
-
-  const moveDay = async (direction: -1 | 1) => {
-    if (!selectedPlan || !selectedDay) return
-    const days = sortedDays(selectedPlan)
-    const index = days.findIndex((day) => day.id === selectedDay.id)
-    const target = index + direction
-    if (target < 0 || target >= days.length) return
-    ;[days[index], days[target]] = [days[target], days[index]]
-    await persistPlan({ ...selectedPlan, days: normalizeOrders(days) })
   }
 
   const openNewExercise = () => {
