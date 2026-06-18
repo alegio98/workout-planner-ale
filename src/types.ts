@@ -76,9 +76,14 @@ export interface SessionExercise {
   sets: SessionSet[]
 }
 
+export type SessionOrigin = 'plan' | 'free' | 'shuffle'
+
 export interface WorkoutSession {
   id: string
   scheduledDate: string
+  origin?: SessionOrigin
+  estimatedDurationMinutes?: number
+  selectedMuscleGroups?: string[]
   status: SessionStatus
   sourcePlanId?: string
   sourceDayId?: string
