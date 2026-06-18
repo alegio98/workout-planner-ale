@@ -1,118 +1,469 @@
 # Workout Planner
 
-Web app mobile-first per creare schede palestra, assegnare le giornate al calendario e registrare un allenamento. La sezione storico è volutamente esclusa da questa versione.
+Workout Planner è una Progressive Web App mobile-first sviluppata con React, TypeScript e Vite.
 
-## Stack
+Il progetto permette di creare e importare schede di allenamento, pianificare le sessioni nel calendario, registrare serie, ripetizioni e pesi e utilizzare un timer integrato.
 
-- React + TypeScript
+L’applicazione segue un approccio **local-first**: i dati vengono salvati nel browser tramite IndexedDB e restano disponibili anche offline dopo il primo caricamento.
+
+## Demo
+
+https://alegio98.github.io/workout-planner-ale/
+
+## Screenshot
+
+<p align="center">
+  <img src="docs/screenshots/calendar.png" width="220" alt="Calendario">
+  <img src="docs/screenshots/plans.png" width="220" alt="Schede">
+  <img src="docs/screenshots/workout.png" width="220" alt="Allenamento">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/import.png" width="220" alt="Importazione scheda">
+  <img src="docs/screenshots/timer.png" width="220" alt="Timer">
+</p>
+
+## Stack tecnologico
+
+- React
+- TypeScript
 - Vite
-- IndexedDB tramite Dexie
-- CSS responsive senza framework
-- Icone Lucide
+- Dexie
+- IndexedDB
+- CSS
+- Service Worker
+- Web App Manifest
+- GitHub Actions
+- GitHub Pages
 
-Non sono presenti backend, autenticazione, Zustand o Tailwind. IndexedDB è l'unica fonte persistente dei dati.
+## Architettura
 
-## Funzioni disponibili
+L’applicazione è composta da tre livelli principali:
 
-### Schede
+```text
+Interfaccia React
+      ↓
+Logica applicativa TypeScript
+      ↓
+Dexie / IndexedDB
+```
 
-- Creazione, modifica, duplicazione ed eliminazione delle schede
-- Gestione di personal trainer, date, durata e note
-- Aggiunta, modifica, duplicazione, eliminazione e riordinamento delle giornate
-- Aggiunta, modifica, duplicazione, eliminazione e riordinamento degli esercizi
-- Serie standard oppure piramidali/personalizzate, con ripetizioni e peso per ogni serie
-- Recupero, tecnica e note del personal trainer
+Non è presente un backend remoto.
 
-### Calendario
+Tutti i dati vengono salvati localmente nel browser dell’utente.
 
-- Vista settimanale mobile-first
-- Calendario mensile espandibile con indicatori degli allenamenti
-- Assegnazione di una giornata a una data
-- Eliminazione di un allenamento dalla data selezionata
-- Creazione di uno snapshot indipendente della giornata
-- Azioni rapide: prossima giornata, ripeti ultimo allenamento e copia settimana precedente
-- Stato programmato, iniziato, completato o saltato
+Il database IndexedDB utilizzato dall’app si chiama:
 
-### Allenamento
+```text
+WorkoutPlannerDB
+```
 
-- Apertura e continuazione della sessione direttamente dal calendario
-- Separazione tra valori programmati e valori realmente eseguiti
-- Peso e ripetizioni reali per ogni serie, con tastierino numerico ottimizzato
-- Serie completata o saltata
-- Modifica degli esercizi della singola sessione
-- Passaggio rapido e persistente tra allenamento in corso e timer
-- Scelta esplicita tra "solo questo allenamento" e "aggiorna anche la scheda originale"
-- Aggiornamento facoltativo del peso consigliato dopo il completamento
+Dexie viene utilizzato come wrapper TypeScript per semplificare lettura, scrittura e aggiornamento dei dati.
 
-### Timer
+## Struttura del progetto
 
-- Visualizzazione minuti, secondi e millisecondi
-- Un tocco avvia il cronometro
-- Un secondo tocco lo azzera
-- Il tocco successivo lo avvia nuovamente
-- Firma minimale con collegamento al profilo GitHub dello sviluppatore
+```text
+workout-planner-ale/
+├── public/
+│   ├── icons/
+│   ├── manifest.webmanifest
+│   └── sw.js
+├── src/
+│   ├── components/
+│   │   └── NumericInput.tsx
+│   ├── App.tsx
+│   ├── db.ts
+│   ├── main.tsx
+│   ├── planTextParser.ts
+│   ├── styles.css
+│   └── types.ts
+├── index.html
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+├── vite.config.ts
+└── README.md
+```
 
-## Avvio locale
+## File principali
 
-Richiede una versione recente di Node.js.
+### `src/App.tsx`
+
+Contiene il componente principale e gestisce:
+
+- navigazione tra calendario, schede e timer;
+- creazione e modifica delle schede;
+- assegnazione degli allenamenti;
+- gestione delle sessioni;
+- importazione delle schede da testo;
+- tema chiaro e scuro;
+- logica del timer.
+
+### `src/db.ts`
+
+Contiene la configurazione Dexie e la definizione del database IndexedDB.
+
+Gestisce principalmente:
+
+- schede di allenamento;
+- sessioni assegnate al calendario;
+- migrazioni del database;
+- persistenza locale.
+
+### `src/types.ts`
+
+Contiene le interfacce TypeScript utilizzate dall’applicazione:
+
+- schede;
+- giornate;
+- esercizi;
+- serie programmate;
+- sessioni;
+- risultati eseguiti.
+
+### `src/planTextParser.ts`
+
+Contiene il parser per importare una scheda da testo strutturato.
+
+Esempio:
+
+```text
+Giorno A - Petto
+1) Panca piana, 10 8 8 6 (recupero 90 secondi)
+2) Croci ai cavi, 8 8 8 8
+
+Giorno B - Schiena
+1) Lat machine, 12 10 8 8
+```
+
+Il parser riconosce:
+
+- nome della giornata;
+- nome dell’esercizio;
+- ripetizioni;
+- numero delle serie;
+- serie standard o piramidali;
+- note tra parentesi.
+
+### `src/components/NumericInput.tsx`
+
+Componente riutilizzabile per i campi numerici.
+
+Gestisce:
+
+- tastierino numerico su mobile;
+- tastierino decimale per i pesi;
+- selezione automatica del valore;
+- cancellazione temporanea del contenuto;
+- normalizzazione del valore al termine della modifica.
+
+### `public/sw.js`
+
+Service worker della PWA.
+
+Gestisce:
+
+- cache dei file statici;
+- avvio offline;
+- aggiornamento delle versioni;
+- pulizia delle vecchie cache.
+
+Quando viene pubblicata una nuova versione, il nome della cache deve essere aggiornato.
+
+Esempio:
+
+```js
+const CACHE_NAME = "workout-planner-v0.7.1";
+```
+
+### `public/manifest.webmanifest`
+
+Contiene la configurazione PWA:
+
+- nome dell’app;
+- icone;
+- colori;
+- modalità standalone;
+- URL iniziale.
+
+## Modello dati
+
+Il progetto distingue tra scheda originale e sessione programmata.
+
+### Scheda
+
+La scheda è il modello modificabile dell’utente.
+
+```text
+WorkoutPlan
+ └── PlanDay[]
+      └── PlanExercise[]
+           └── PlannedSet[]
+```
+
+### Sessione
+
+Quando una giornata viene assegnata al calendario, viene creata una copia indipendente.
+
+```text
+WorkoutSession
+ └── SessionExercise[]
+      └── SessionSet[]
+```
+
+Questo permette di modificare un singolo allenamento senza cambiare la scheda originale.
+
+## Serie standard e personalizzate
+
+Gli esercizi supportano:
+
+```text
+Standard
+4 × 8
+```
+
+oppure:
+
+```text
+Piramidale
+10 - 8 - 8 - 6
+```
+
+Ogni serie può contenere:
+
+- ripetizioni programmate;
+- peso programmato;
+- ripetizioni eseguite;
+- peso eseguito;
+- stato completato o saltato.
+
+## Persistenza locale
+
+I dati vengono salvati in IndexedDB.
+
+Vantaggi:
+
+- nessun backend necessario;
+- latenza molto bassa;
+- funzionamento offline;
+- dati privati sul dispositivo;
+- costi infrastrutturali ridotti.
+
+Limiti:
+
+- i dati non vengono sincronizzati tra dispositivi;
+- cancellando i dati del browser si possono perdere le informazioni;
+- non è presente un backup remoto;
+- ogni browser mantiene il proprio archivio.
+
+## Avvio in locale
+
+Requisiti:
+
+- Node.js 20 o superiore
+- npm
+
+Clona il repository:
+
+```bash
+git clone https://github.com/alegio98/workout-planner-ale.git
+cd workout-planner-ale
+```
+
+Installa le dipendenze:
+
+```bash
+npm ci
+```
+
+Avvia il server di sviluppo:
+
+```bash
+npm run dev
+```
+
+Vite mostrerà un URL simile a:
+
+```text
+http://localhost:5173
+```
+
+## Script disponibili
+
+```bash
+npm run dev
+```
+
+Avvia l’app in modalità sviluppo.
+
+```bash
+npm run lint
+```
+
+Esegue il controllo TypeScript.
+
+```bash
+npm run build
+```
+
+Genera la build di produzione nella cartella `dist`.
+
+```bash
+npm run preview
+```
+
+Avvia localmente la build di produzione.
+
+## Build di produzione
+
+Prima di pubblicare:
+
+```bash
+npm run lint
+npm run build
+```
+
+La cartella prodotta è:
+
+```text
+dist/
+```
+
+## Deploy
+
+Il deploy viene eseguito automaticamente tramite GitHub Actions.
+
+Ogni push sul branch `main` avvia:
+
+1. checkout del repository;
+2. installazione delle dipendenze;
+3. controllo TypeScript;
+4. build Vite;
+5. pubblicazione della cartella `dist`;
+6. aggiornamento GitHub Pages.
+
+Il sito viene pubblicato su:
+
+```text
+https://alegio98.github.io/workout-planner-ale/
+```
+
+## Flusso di sviluppo
+
+Prima di iniziare una modifica:
+
+```bash
+git pull --rebase origin main
+```
+
+Avvia l’app:
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Aprire l'indirizzo mostrato da Vite, normalmente `http://localhost:5173`.
-
-## Build di produzione
+Dopo le modifiche:
 
 ```bash
+npm run lint
 npm run build
-npm run preview
 ```
 
-La cartella generata è `dist`.
+Commit e push:
 
-## Persistenza
+```bash
+git add .
+git commit -m "Descrizione modifica"
+git push origin main
+```
 
-Schede e sessioni vengono salvate in IndexedDB nel browser. Restano disponibili dopo la chiusura dell'app, ma sono legate al browser e al dispositivo utilizzati. La cancellazione dei dati del sito elimina anche le schede e le sessioni.
+## Aggiornamento della PWA
 
-## Limiti attuali
+Chi ha già installato la PWA non deve reinstallarla.
 
-- Nessuna autenticazione
-- Nessun backend o sincronizzazione tra dispositivi
-- Nessuna sezione storico separata
-- Nessuna condivisione con il personal trainer
-- Nessuna esportazione o backup
+Dopo il deploy:
 
-## Correzione compatibilità 0.5.1
+- il service worker rileva la nuova versione;
+- scarica i nuovi file;
+- mantiene invariato IndexedDB;
+- applica l’aggiornamento alla successiva apertura.
 
-La generazione degli ID e la duplicazione dei dati includono fallback per Safari/iOS e per i browser che non espongono `crypto.randomUUID()` o `structuredClone()`. Questo evita il crash della schermata Schede su alcuni telefoni e durante i test tramite indirizzi HTTP locali.
+Quando vengono modificati i file statici, è consigliato incrementare il nome della cache nel service worker.
 
-## Aggiornamento 0.5.2
+## Compatibilità mobile
 
-- Header superiore rimosso per aumentare lo spazio utile
-- Logo dell’app usato come selettore del tema chiaro/scuro
-- Tema scuro nero e viola elettrico, persistente sul dispositivo
-- Rimossi nota specifica, difficoltà percepita e nota generale dell’allenamento
-- Aggiunto “Powered by @alegio98” nel Timer con link a GitHub
+L’interfaccia è progettata principalmente per smartphone.
 
+Sono stati gestiti:
 
-## Aggiornamento 0.6.0
+- tastierino numerico;
+- tastierino decimale;
+- input da almeno 16 px;
+- modalità standalone;
+- safe area su iPhone;
+- layout responsive;
+- scroll dei form;
+- navigazione rapida tra allenamento e timer.
 
-- Tastierino numerico o decimale su serie, ripetizioni, pesi e recuperi
-- I campi possono essere svuotati e riscritti senza inserimenti automatici indesiderati
-- Input da almeno 16 px per evitare lo zoom automatico di Safari su iPhone
-- Serie standard o piramidali/personalizzate con obiettivi diversi per ogni serie
-- Migrazione automatica delle schede e sessioni già salvate alla versione 2 di IndexedDB
-- Schermata allenamento più leggibile e compatta
-- Riepilogo generale “Programmato” sostituito da recupero, tecnica e note dell’esercizio
-- Timer ingrandito
-- Scorciatoie fisse tra Calendario, Allenamento e Timer
+## Screenshot
 
-## Versione 0.7.0
+Inserire gli screenshot nella cartella:
 
-- Importazione rapida di una scheda da testo strutturato.
-- Riconoscimento automatico di giornate, esercizi, ripetizioni standard e piramidali.
-- Testo tra parentesi importato nelle note dell'esercizio.
-- Selezione automatica del valore nei campi numerici per sovrascriverlo al primo tocco.
-- Modali mobile stabilizzate: pagina sottostante bloccata e scorrimento interno indipendente.
+```text
+docs/screenshots/
+```
+
+Nomi consigliati:
+
+```text
+calendar.png
+plans.png
+workout.png
+import.png
+timer.png
+```
+
+Esempio Markdown:
+
+```html
+<p align="center">
+  <img src="docs/screenshots/calendar.png" width="220">
+  <img src="docs/screenshots/plans.png" width="220">
+  <img src="docs/screenshots/workout.png" width="220">
+</p>
+```
+
+## Roadmap tecnica
+
+Possibili sviluppi futuri:
+
+- esportazione e importazione del database;
+- backup locale;
+- sincronizzazione opzionale;
+- condivisione delle schede;
+- collegamento personal trainer/utente;
+- storico avanzato;
+- statistiche;
+- test automatici;
+- refactoring dei componenti;
+- separazione della logica applicativa da `App.tsx`;
+- gestione degli aggiornamenti PWA tramite banner;
+- migrazioni IndexedDB più strutturate.
+
+## Limiti noti
+
+- nessuna sincronizzazione cloud;
+- nessun account utente;
+- dati legati al browser;
+- nessun backup automatico;
+- possibili differenze tra Safari, Chrome e browser Android;
+- il progetto è ancora in evoluzione.
+
+## Autore
+
+Sviluppato da Alessandro Giovannini.
+
+- GitHub: https://github.com/alegio98
+- Repository: https://github.com/alegio98/workout-planner-ale
+- Demo: https://alegio98.github.io/workout-planner-ale/
