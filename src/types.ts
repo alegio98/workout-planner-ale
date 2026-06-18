@@ -1,5 +1,13 @@
 export type SessionStatus = 'scheduled' | 'started' | 'completed' | 'skipped' | 'moved'
 export type SetStatus = 'pending' | 'completed' | 'skipped'
+export type SetMode = 'standard' | 'custom'
+
+export interface PlannedSetTarget {
+  id: string
+  setNumber: number
+  reps: number
+  weight: number
+}
 
 export interface PlanExercise {
   id: string
@@ -8,6 +16,8 @@ export interface PlanExercise {
   sets: number
   reps: number
   suggestedWeight: number
+  setMode: SetMode
+  setTargets: PlannedSetTarget[]
   recoverySeconds: number
   technique: string
   trainerNotes: string
@@ -56,11 +66,10 @@ export interface SessionExercise {
   plannedSets: number
   plannedReps: number
   plannedWeight: number
+  setMode: SetMode
   recoverySeconds: number
   technique: string
   trainerNotes: string
-  sessionNotes: string
-  perceivedDifficulty?: number
   order: number
   origin: 'template' | 'custom'
   isCustomized: boolean
@@ -78,7 +87,6 @@ export interface WorkoutSession {
   dayNameSnapshot: string
   dayFocusSnapshot: string
   exercises: SessionExercise[]
-  notes: string
   hasLocalChanges: boolean
   startedAt?: string
   completedAt?: string

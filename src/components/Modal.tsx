@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 
 interface ModalProps {
@@ -11,6 +11,20 @@ interface ModalProps {
 }
 
 export default function Modal({ open, title, description, children, onClose, wide = false }: ModalProps) {
+  useEffect(() => {
+    if (!open) return
+
+    const html = document.documentElement
+    const body = document.body
+    html.classList.add('modal-open')
+    body.classList.add('modal-open')
+
+    return () => {
+      html.classList.remove('modal-open')
+      body.classList.remove('modal-open')
+    }
+  }, [open])
+
   if (!open) return null
 
   return (

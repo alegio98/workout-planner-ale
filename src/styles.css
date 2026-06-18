@@ -489,3 +489,305 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: .72; }
   .hero-tools { gap: 6px; }
   .theme-logo-button { width: 45px; height: 45px; border-radius: 16px; }
 }
+
+/* v0.6.0 · input mobile, serie personalizzate e scorciatoie */
+.form-stack input,
+.form-stack select,
+.form-stack textarea,
+.inline-select select {
+  font-size: 16px;
+}
+
+.set-mode-field { display: grid; gap: 6px; }
+.set-mode-field > span { color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.segmented-control { display: grid; grid-template-columns: .8fr 1.4fr; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-soft); }
+.segmented-control button { min-height: 40px; border: 0; border-radius: 10px; padding: 8px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 900; }
+.segmented-control button.active { color: #fff; background: var(--primary); box-shadow: 0 5px 14px rgba(124,58,237,.22); }
+
+.custom-sets-editor { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface-soft); }
+.custom-set-head,
+.custom-set-row { display: grid; grid-template-columns: 38px minmax(0,1fr) minmax(0,1fr) 34px; gap: 7px; align-items: center; }
+.custom-set-head { color: var(--muted); font-size: 9px; font-weight: 900; text-align: center; }
+.custom-set-row > b { width: 32px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: var(--primary); background: var(--primary-soft); font-size: 13px; }
+.custom-set-row input { width: 100%; min-width: 0; min-height: 42px; border: 1px solid var(--border); border-radius: 10px; padding: 8px; color: var(--text); background: var(--surface); text-align: center; font-size: 16px; outline: none; }
+.remove-set-button { width: 34px; height: 40px; border: 0; border-radius: 10px; display: grid; place-items: center; color: var(--red); background: var(--red-soft); }
+.add-set-button { min-height: 40px; border: 1px dashed var(--primary); border-radius: 11px; display: flex; align-items: center; justify-content: center; gap: 5px; color: var(--primary); background: transparent; font-size: 11px; font-weight: 900; }
+
+.session-detail-open { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+.sticky-back-link { position: sticky; top: calc(8px + env(safe-area-inset-top)); z-index: 12; width: fit-content; min-height: 38px; margin-bottom: 10px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 7px 20px rgba(16,24,40,.09); backdrop-filter: blur(14px); }
+.session-shortcuts { position: fixed; z-index: 30; left: 10px; right: 10px; bottom: calc(8px + env(safe-area-inset-bottom)); max-width: 520px; min-height: 58px; margin: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 5px; border: 1px solid var(--border); border-radius: 18px; background: var(--nav-background); box-shadow: 0 12px 32px rgba(16,24,40,.16); backdrop-filter: blur(18px); }
+.session-shortcuts button { border: 0; border-radius: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); background: transparent; font-size: 9px; font-weight: 900; }
+.session-shortcuts button.active { color: var(--primary); background: var(--primary-soft); }
+
+.workout-header-card { padding: 18px; }
+.workout-header-card h1 { font-size: clamp(22px, 6.4vw, 28px); line-height: 1.08; }
+.workout-header-card p { font-size: 12px; line-height: 1.4; }
+.run-exercise-card { padding: 14px; margin-top: 9px; }
+.run-exercise-heading h2 { font-size: clamp(20px, 5.5vw, 24px); line-height: 1.08; }
+.run-exercise-heading p { font-size: 11px; }
+.exercise-guidance { display: grid; gap: 6px; margin: 10px 0 12px; }
+.exercise-guidance > span { width: fit-content; display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border-radius: 10px; color: var(--primary); background: var(--primary-soft); font-size: 11px; }
+.exercise-guidance p { padding: 8px 9px; border-left: 3px solid var(--primary); border-radius: 4px 9px 9px 4px; color: var(--text); background: var(--surface-soft); font-size: 12px; line-height: 1.45; }
+.exercise-guidance p b { color: var(--primary); }
+.set-list { gap: 6px; }
+.set-label-row, .set-row { grid-template-columns: 40px minmax(78px,1fr) minmax(78px,1fr) 66px; gap: 6px; }
+.set-label-row { font-size: 9px; }
+.set-number { display: grid; justify-items: center; gap: 1px; font-size: 13px; }
+.set-number > small { position: static; transform: none; color: var(--muted); font-size: 7px; }
+.set-row input { min-height: 46px; padding: 8px 25px 8px 7px; font-size: 17px; font-weight: 800; }
+.set-row small { font-size: 8px; }
+.set-check { width: 38px; height: 42px; }
+.set-skip { width: 25px; height: 42px; }
+.set-actions { grid-template-columns: 38px 25px; }
+.workout-actions .primary-button,
+.workout-actions .secondary-button { min-height: 49px; font-size: 14px; }
+
+.timer-card { min-height: min(500px, 60vh); }
+.timer-display { font-size: clamp(58px, 16vw, 104px); }
+.timer-tap-hint { font-size: 12px; }
+
+:root[data-theme="dark"] .sticky-back-link,
+:root[data-theme="dark"] .session-shortcuts { box-shadow: 0 12px 34px rgba(0,0,0,.36); }
+
+@media (min-width: 620px) {
+  .session-shortcuts { position: absolute; }
+}
+
+@media (max-width: 430px) {
+  .view-shell.workout-view { padding: 12px 12px 18px; }
+  .workout-header-card { padding: 15px; }
+  .run-exercise-card { padding: 12px; }
+  .run-exercise-heading .mini-actions { gap: 2px; }
+  .run-exercise-heading .mini-actions button { width: 27px; height: 27px; }
+  .set-label-row, .set-row { grid-template-columns: 36px minmax(70px,1fr) minmax(70px,1fr) 62px; gap: 4px; }
+  .set-row input { min-height: 45px; font-size: 16px; }
+  .set-actions { grid-template-columns: 36px 23px; gap: 2px; }
+  .set-check { width: 36px; }
+  .set-skip { width: 23px; }
+  .timer-card { min-height: min(520px, 64vh); padding-inline: 10px; }
+  .timer-display { font-size: clamp(52px, 16.5vw, 72px); }
+}
+
+/* v0.7.0 · importazione testo e stabilità form mobile */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body.modal-open,
+html.modal-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.app-background,
+.app-frame {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-content {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.secondary-button.compact {
+  min-height: 39px;
+  padding: 8px 11px;
+}
+
+.empty-state-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.modal-backdrop {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  padding-top: env(safe-area-inset-top);
+}
+
+.modal-sheet {
+  max-height: calc(100vh - env(safe-area-inset-top));
+  max-height: calc(100dvh - env(safe-area-inset-top));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scroll-padding-top: 86px;
+  scroll-padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
+
+.modal-heading {
+  position: sticky;
+  z-index: 4;
+  top: -12px;
+  margin-inline: -4px;
+  padding: 12px 4px 8px;
+  background: var(--surface);
+}
+
+.form-stack input,
+.form-stack select,
+.form-stack textarea,
+.custom-set-row input,
+.set-row input {
+  font-size: 16px;
+}
+
+.import-plan-form {
+  padding-bottom: 8px;
+}
+
+.plan-textarea {
+  min-height: 250px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+
+.import-preview {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+
+.import-preview.valid {
+  border-color: color-mix(in srgb, var(--green) 45%, var(--border));
+}
+
+.import-preview.invalid {
+  border-color: color-mix(in srgb, var(--red) 45%, var(--border));
+}
+
+.import-preview b {
+  font-size: 12px;
+}
+
+.import-preview span,
+.import-preview small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 430px) {
+  .page-heading {
+    align-items: flex-start;
+  }
+
+  .page-actions {
+    max-width: 170px;
+  }
+
+  .page-actions .primary-button,
+  .page-actions .secondary-button {
+    padding-inline: 9px;
+    font-size: 10px;
+  }
+
+  .modal-sheet {
+    width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    border-radius: 22px 22px 0 0;
+  }
+
+  .plan-textarea {
+    min-height: 230px;
+  }
+}
+
+/* v0.7.1 · importazione su schermata dedicata */
+.import-screen {
+  min-height: 100%;
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+}
+
+.import-screen-header {
+  position: sticky;
+  z-index: 8;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -18px -18px 14px;
+  padding: calc(14px + env(safe-area-inset-top)) 18px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 94%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.import-screen-header h1 {
+  margin: 2px 0 0;
+  font-size: clamp(19px, 5vw, 25px);
+  line-height: 1.08;
+}
+
+.import-back-button {
+  flex: 0 0 auto;
+}
+
+.import-screen-description {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.import-screen-form {
+  padding-bottom: 14px;
+}
+
+.import-screen-textarea {
+  min-height: min(48dvh, 430px);
+  resize: vertical;
+}
+
+.import-screen-actions {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.import-screen-actions button {
+  min-height: 48px;
+}
+
+@media (min-width: 700px) {
+  .import-screen-header {
+    margin: -26px -28px 18px;
+    padding-inline: 28px;
+  }
+
+  .import-screen-form,
+  .import-screen-description,
+  .import-screen-actions {
+    max-width: 720px;
+    margin-inline: auto;
+  }
+}

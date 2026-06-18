@@ -1,6 +1,6 @@
 import { db } from './db'
 import type { WorkoutPlan } from './types'
-import { addDays, createSessionFromDay, localDate, uid } from './utils'
+import { addDays, createSessionFromDay, createStandardTargets, localDate, uid } from './utils'
 
 const exercise = (
   name: string,
@@ -17,6 +17,8 @@ const exercise = (
   sets,
   reps,
   suggestedWeight: weight,
+  setMode: 'standard' as const,
+  setTargets: createStandardTargets(sets, reps, weight),
   recoverySeconds,
   technique: '',
   trainerNotes: '',

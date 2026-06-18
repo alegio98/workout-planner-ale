@@ -20,7 +20,8 @@ Non sono presenti backend, autenticazione, Zustand o Tailwind. IndexedDB è l'un
 - Gestione di personal trainer, date, durata e note
 - Aggiunta, modifica, duplicazione, eliminazione e riordinamento delle giornate
 - Aggiunta, modifica, duplicazione, eliminazione e riordinamento degli esercizi
-- Serie, ripetizioni, peso, recupero, tecnica e note del personal trainer
+- Serie standard oppure piramidali/personalizzate, con ripetizioni e peso per ogni serie
+- Recupero, tecnica e note del personal trainer
 
 ### Calendario
 
@@ -36,9 +37,10 @@ Non sono presenti backend, autenticazione, Zustand o Tailwind. IndexedDB è l'un
 
 - Apertura e continuazione della sessione direttamente dal calendario
 - Separazione tra valori programmati e valori realmente eseguiti
-- Peso e ripetizioni reali per ogni serie
+- Peso e ripetizioni reali per ogni serie, con tastierino numerico ottimizzato
 - Serie completata o saltata
 - Modifica degli esercizi della singola sessione
+- Passaggio rapido e persistente tra allenamento in corso e timer
 - Scelta esplicita tra "solo questo allenamento" e "aggiorna anche la scheda originale"
 - Aggiornamento facoltativo del peso consigliato dopo il completamento
 
@@ -93,3 +95,24 @@ La generazione degli ID e la duplicazione dei dati includono fallback per Safari
 - Tema scuro nero e viola elettrico, persistente sul dispositivo
 - Rimossi nota specifica, difficoltà percepita e nota generale dell’allenamento
 - Aggiunto “Powered by @alegio98” nel Timer con link a GitHub
+
+
+## Aggiornamento 0.6.0
+
+- Tastierino numerico o decimale su serie, ripetizioni, pesi e recuperi
+- I campi possono essere svuotati e riscritti senza inserimenti automatici indesiderati
+- Input da almeno 16 px per evitare lo zoom automatico di Safari su iPhone
+- Serie standard o piramidali/personalizzate con obiettivi diversi per ogni serie
+- Migrazione automatica delle schede e sessioni già salvate alla versione 2 di IndexedDB
+- Schermata allenamento più leggibile e compatta
+- Riepilogo generale “Programmato” sostituito da recupero, tecnica e note dell’esercizio
+- Timer ingrandito
+- Scorciatoie fisse tra Calendario, Allenamento e Timer
+
+## Versione 0.7.0
+
+- Importazione rapida di una scheda da testo strutturato.
+- Riconoscimento automatico di giornate, esercizi, ripetizioni standard e piramidali.
+- Testo tra parentesi importato nelle note dell'esercizio.
+- Selezione automatica del valore nei campi numerici per sovrascriverlo al primo tocco.
+- Modali mobile stabilizzate: pagina sottostante bloccata e scorrimento interno indipendente.

@@ -1,10 +1,16 @@
-import { Github, TimerReset } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Dumbbell, Github, Timer, TimerReset } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 const STORAGE_KEY = 'workout-planner.timer.v2'
 
 type TimerState = {
   runningSince: number | null
+}
+
+interface TimerViewProps {
+  sessionMode?: boolean
+  onBackToWorkout?: () => void
+  onBackToCalendar?: () => void
 }
 
 const initialTimerState = (): TimerState => {
@@ -26,7 +32,7 @@ const formatTime = (milliseconds: number) => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`
 }
 
-export default function TimerView() {
+export default function TimerView({ sessionMode = false, onBackToWorkout, onBackToCalendar }: TimerViewProps) {
   const [timer, setTimer] = useState<TimerState>(initialTimerState)
   const [now, setNow] = useState(Date.now())
   const running = timer.runningSince !== null
@@ -59,7 +65,13 @@ export default function TimerView() {
   }
 
   return (
-    <div className="view-shell timer-view">
+    <div className={`view-shell timer-view ${sessionMode ? 'timer-session-view' : ''}`}>
+      {sessionMode && (
+        <button className="back-link sticky-back-link" onClick={onBackToWorkout}>
+          <ArrowLeft size={16} /> Torna all’allenamento
+        </button>
+      )}
+
       <section className="page-heading timer-heading">
         <div>
           <span className="eyebrow">Cronometro rapido</span>
@@ -75,13 +87,21 @@ export default function TimerView() {
         onClick={toggleTimer}
         aria-label={running ? 'Azzera il timer' : 'Avvia il timer'}
       >
-        <div className="timer-icon"><TimerReset size={30} /></div>
+        <div className="timer-icon"><TimerReset size={34} /></div>
         <div className="timer-display" aria-live="off">{formatTime(elapsed)}</div>
         <div className="timer-units" aria-hidden="true">
           <span>Minuti</span><span>Secondi</span><span>Millisecondi</span>
         </div>
         <strong className="timer-tap-hint">{running ? 'Tocca per azzerare' : 'Tocca per avviare'}</strong>
       </button>
+
+      {sessionMode && (
+        <nav className="session-shortcuts" aria-label="Scorciatoie allenamento">
+          <button onClick={onBackToCalendar}><CalendarDays size={18} /><span>Calendario</span></button>
+          <button onClick={onBackToWorkout}><Dumbbell size={18} /><span>Allenamento</span></button>
+          <button className="active"><Timer size={18} /><span>Timer</span></button>
+        </nav>
+      )}
 
       <footer className="developer-credit">
         <a href="https://github.com/alegio98" target="_blank" rel="noreferrer">

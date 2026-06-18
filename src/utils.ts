@@ -1,4 +1,11 @@
-import type { PlanDay, SessionExercise, WorkoutPlan, WorkoutSession } from './types'
+import type {
+  PlanDay,
+  PlanExercise,
+  PlannedSetTarget,
+  SessionExercise,
+  WorkoutPlan,
+  WorkoutSession,
+} from './types'
 
 export const uid = () => {
   const browserCrypto = globalThis.crypto
@@ -61,30 +68,64 @@ export const sortedDays = (plan: WorkoutPlan) =>
 export const sortedExercises = <T extends { order: number }>(items: T[] | undefined) =>
   [...(Array.isArray(items) ? items : [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-const createSessionExercise = (exercise: PlanDay['exercises'][number]): SessionExercise => ({
-  id: uid(),
-  sourceExerciseId: exercise.id,
-  name: exercise.name,
-  muscleGroup: exercise.muscleGroup,
-  plannedSets: exercise.sets,
-  plannedReps: exercise.reps,
-  plannedWeight: exercise.suggestedWeight,
-  recoverySeconds: exercise.recoverySeconds,
-  technique: exercise.technique,
-  trainerNotes: exercise.trainerNotes,
-  sessionNotes: '',
-  order: exercise.order,
-  origin: 'template',
-  isCustomized: false,
-  sets: Array.from({ length: exercise.sets }, (_, index) => ({
+export const createStandardTargets = (count: number, reps: number, weight: number): PlannedSetTarget[] =>
+  Array.from({ length: Math.max(1, count) }, (_, index) => ({
     id: uid(),
     setNumber: index + 1,
-    targetReps: exercise.reps,
-    targetWeight: exercise.suggestedWeight,
-    status: 'pending' as const,
-    notes: '',
-  })),
-})
+    reps: Math.max(1, reps),
+    weight: Math.max(0, weight),
+  }))
+
+export const getPlanSetTargets = (exercise: PlanExercise): PlannedSetTarget[] => {
+  if (exercise.setMode === 'custom' && Array.isArray(exercise.setTargets) && exercise.setTargets.length) {
+    return exercise.setTargets.map((target, index) => ({
+      id: target.id || uid(),
+      setNumber: index + 1,
+      reps: Math.max(1, Number(target.reps) || 1),
+      weight: Math.max(0, Number(target.weight) || 0),
+    }))
+  }
+
+  return createStandardTargets(exercise.sets || 1, exercise.reps || 1, exercise.suggestedWeight || 0)
+}
+
+export const exercisePrescriptionLabel = (exercise: PlanExercise) => {
+  const targets = getPlanSetTargets(exercise)
+  if (exercise.setMode === 'custom') {
+    const reps = targets.map((target) => target.reps).join('/')
+    return `${targets.length} serie · ${reps} reps · recupero ${exercise.recoverySeconds} sec`
+  }
+  return `${targets.length} × ${targets[0]?.reps ?? exercise.reps} · ${targets[0]?.weight || '—'} kg · recupero ${exercise.recoverySeconds} sec`
+}
+
+const createSessionExercise = (exercise: PlanDay['exercises'][number]): SessionExercise => {
+  const targets = getPlanSetTargets(exercise)
+  const first = targets[0]
+  return {
+    id: uid(),
+    sourceExerciseId: exercise.id,
+    name: exercise.name,
+    muscleGroup: exercise.muscleGroup,
+    plannedSets: targets.length,
+    plannedReps: first?.reps ?? exercise.reps,
+    plannedWeight: first?.weight ?? exercise.suggestedWeight,
+    setMode: exercise.setMode ?? 'standard',
+    recoverySeconds: exercise.recoverySeconds,
+    technique: exercise.technique,
+    trainerNotes: exercise.trainerNotes,
+    order: exercise.order,
+    origin: 'template',
+    isCustomized: false,
+    sets: targets.map((target, index) => ({
+      id: uid(),
+      setNumber: index + 1,
+      targetReps: target.reps,
+      targetWeight: target.weight,
+      status: 'pending' as const,
+      notes: '',
+    })),
+  }
+}
 
 export const createSessionFromDay = (
   plan: WorkoutPlan,
@@ -103,7 +144,6 @@ export const createSessionFromDay = (
     dayNameSnapshot: day.name,
     dayFocusSnapshot: day.focus,
     exercises: sortedExercises(day.exercises).map(createSessionExercise),
-    notes: '',
     hasLocalChanges: false,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -124,8 +164,6 @@ export const cloneSessionForDate = (source: WorkoutSession, scheduledDate: strin
     exercises: source.exercises.map((exercise) => ({
       ...safeClone(exercise),
       id: uid(),
-      perceivedDifficulty: undefined,
-      sessionNotes: '',
       sets: exercise.sets.map((set, index) => ({
         id: uid(),
         setNumber: index + 1,
@@ -147,6 +185,8 @@ export const makeEmptyExercise = (order: number): PlanDay['exercises'][number] =
   sets: 3,
   reps: 10,
   suggestedWeight: 0,
+  setMode: 'standard',
+  setTargets: createStandardTargets(3, 10, 0),
   recoverySeconds: 60,
   technique: '',
   trainerNotes: '',

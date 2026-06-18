@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'workout-planner-v0.5.2'
+const CACHE_VERSION = 'workout-planner-v0.7.1'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const scopeUrl = new URL('./', self.registration.scope)
 const indexUrl = new URL('./index.html', scopeUrl)

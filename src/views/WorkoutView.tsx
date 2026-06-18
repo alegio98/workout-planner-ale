@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  CalendarDays,
   Check,
   Circle,
   CopyCheck,
@@ -11,11 +12,20 @@ import {
   Plus,
   RotateCcw,
   SkipForward,
+  Timer,
   Trash2,
 } from 'lucide-react'
 import Modal from '../components/Modal'
+import NumericInput from '../components/NumericInput'
 import { db } from '../db'
-import type { SessionExercise, SessionSet, WorkoutPlan, WorkoutSession } from '../types'
+import type {
+  PlannedSetTarget,
+  SessionExercise,
+  SessionSet,
+  SetMode,
+  WorkoutPlan,
+  WorkoutSession,
+} from '../types'
 import { formatLongDate, localDate, normalizeOrders, sortedExercises, uid } from '../utils'
 
 interface WorkoutViewProps {
@@ -24,20 +34,45 @@ interface WorkoutViewProps {
   activeSessionId: string | null
   onSelectSession: (id: string | null) => void
   onBack: () => void
+  onOpenTimer: () => void
   notify: (message: string) => void
 }
 
-type SessionExerciseDraft = Pick<
-  SessionExercise,
-  | 'name'
-  | 'muscleGroup'
-  | 'plannedSets'
-  | 'plannedReps'
-  | 'plannedWeight'
-  | 'recoverySeconds'
-  | 'technique'
-  | 'trainerNotes'
->
+interface SetTargetDraft {
+  id: string
+  setNumber: number
+  reps?: number
+  weight?: number
+}
+
+interface SessionExerciseDraft {
+  name: string
+  muscleGroup: string
+  plannedSets?: number
+  plannedReps?: number
+  plannedWeight?: number
+  setMode: SetMode
+  setTargets: SetTargetDraft[]
+  recoverySeconds?: number
+  technique: string
+  trainerNotes: string
+}
+
+interface NormalizedSessionExerciseDraft extends Omit<SessionExerciseDraft, 'plannedSets' | 'plannedReps' | 'plannedWeight' | 'recoverySeconds' | 'setTargets'> {
+  plannedSets: number
+  plannedReps: number
+  plannedWeight: number
+  recoverySeconds: number
+  setTargets: Array<{ id: string; setNumber: number; reps: number; weight: number }>
+}
+
+const standardTargets = (count: number, reps: number, weight: number): Array<{ id: string; setNumber: number; reps: number; weight: number }> =>
+  Array.from({ length: Math.max(1, count) }, (_, index) => ({
+    id: uid(),
+    setNumber: index + 1,
+    reps,
+    weight,
+  }))
 
 const emptyDraft = (): SessionExerciseDraft => ({
   name: '',
@@ -45,10 +80,36 @@ const emptyDraft = (): SessionExerciseDraft => ({
   plannedSets: 3,
   plannedReps: 10,
   plannedWeight: 0,
+  setMode: 'standard',
+  setTargets: standardTargets(3, 10, 0),
   recoverySeconds: 60,
   technique: '',
   trainerNotes: '',
 })
+
+const normalizeDraft = (draft: SessionExerciseDraft): NormalizedSessionExerciseDraft => {
+  const plannedSets = Math.max(1, draft.plannedSets ?? draft.setTargets.length ?? 1)
+  const plannedReps = Math.max(1, draft.plannedReps ?? 1)
+  const plannedWeight = Math.max(0, draft.plannedWeight ?? 0)
+  const recoverySeconds = Math.max(0, draft.recoverySeconds ?? 0)
+  const targets = draft.setMode === 'custom' && draft.setTargets.length
+    ? draft.setTargets.map((target, index) => ({
+        id: target.id || uid(),
+        setNumber: index + 1,
+        reps: Math.max(1, target.reps ?? plannedReps),
+        weight: Math.max(0, target.weight ?? plannedWeight),
+      }))
+    : standardTargets(plannedSets, plannedReps, plannedWeight)
+
+  return {
+    ...draft,
+    plannedSets: targets.length,
+    plannedReps: targets[0]?.reps ?? plannedReps,
+    plannedWeight: targets[0]?.weight ?? plannedWeight,
+    recoverySeconds,
+    setTargets: targets,
+  }
+}
 
 const createSet = (setNumber: number, reps: number, weight: number): SessionSet => ({
   id: uid(),
@@ -59,18 +120,28 @@ const createSet = (setNumber: number, reps: number, weight: number): SessionSet 
   notes: '',
 })
 
-const resizeSets = (exercise: SessionExercise, count: number, reps: number, weight: number) => {
-  const current = exercise.sets.slice(0, count).map((set, index) => ({
-    ...set,
-    setNumber: index + 1,
-    targetReps: reps,
-    targetWeight: weight,
-  }))
-  while (current.length < count) current.push(createSet(current.length + 1, reps, weight))
-  return current
-}
+const setsFromDraft = (draft: NormalizedSessionExerciseDraft, current?: SessionExercise): SessionSet[] =>
+  draft.setTargets.map((target, index) => {
+    const existing = current?.sets[index]
+    return existing
+      ? {
+          ...existing,
+          setNumber: index + 1,
+          targetReps: target.reps,
+          targetWeight: target.weight,
+        }
+      : createSet(index + 1, target.reps, target.weight)
+  })
 
-export default function WorkoutView({ plans, sessions, activeSessionId, onSelectSession, onBack, notify }: WorkoutViewProps) {
+export default function WorkoutView({
+  plans,
+  sessions,
+  activeSessionId,
+  onSelectSession,
+  onBack,
+  onOpenTimer,
+  notify,
+}: WorkoutViewProps) {
   const fallbackSession = useMemo(() => {
     const today = localDate()
     return [...sessions]
@@ -184,9 +255,16 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
     setExerciseDraft({
       name: exercise.name,
       muscleGroup: exercise.muscleGroup,
-      plannedSets: exercise.plannedSets,
-      plannedReps: exercise.plannedReps,
-      plannedWeight: exercise.plannedWeight,
+      plannedSets: exercise.sets.length,
+      plannedReps: exercise.sets[0]?.targetReps ?? exercise.plannedReps,
+      plannedWeight: exercise.sets[0]?.targetWeight ?? exercise.plannedWeight,
+      setMode: exercise.setMode ?? 'standard',
+      setTargets: exercise.sets.map((set, index) => ({
+        id: set.id,
+        setNumber: index + 1,
+        reps: set.targetReps,
+        weight: set.targetWeight,
+      })),
       recoverySeconds: exercise.recoverySeconds,
       technique: exercise.technique,
       trainerNotes: exercise.trainerNotes,
@@ -196,24 +274,24 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
 
   const saveExerciseDraft = async () => {
     if (!session || !exerciseDraft.name.trim()) return
+    const normalized = normalizeDraft({ ...exerciseDraft, name: exerciseDraft.name.trim() })
+
     if (!editingExerciseId) {
       const exercise: SessionExercise = {
         id: uid(),
-        name: exerciseDraft.name.trim(),
-        muscleGroup: exerciseDraft.muscleGroup,
-        plannedSets: exerciseDraft.plannedSets,
-        plannedReps: exerciseDraft.plannedReps,
-        plannedWeight: exerciseDraft.plannedWeight,
-        recoverySeconds: exerciseDraft.recoverySeconds,
-        technique: exerciseDraft.technique,
-        trainerNotes: exerciseDraft.trainerNotes,
-        sessionNotes: '',
+        name: normalized.name,
+        muscleGroup: normalized.muscleGroup,
+        plannedSets: normalized.plannedSets,
+        plannedReps: normalized.plannedReps,
+        plannedWeight: normalized.plannedWeight,
+        setMode: normalized.setMode,
+        recoverySeconds: normalized.recoverySeconds,
+        technique: normalized.technique,
+        trainerNotes: normalized.trainerNotes,
         order: session.exercises.length,
         origin: 'custom',
         isCustomized: true,
-        sets: Array.from({ length: exerciseDraft.plannedSets }, (_, index) =>
-          createSet(index + 1, exerciseDraft.plannedReps, exerciseDraft.plannedWeight),
-        ),
+        sets: setsFromDraft(normalized),
       }
       await persistSession({ ...session, exercises: [...session.exercises, exercise], hasLocalChanges: true })
       setExerciseModalOpen(false)
@@ -225,10 +303,10 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
     if (!current) return
     setExerciseModalOpen(false)
     if (current.sourceExerciseId && session.sourcePlanId) {
-      setPendingEdit({ exerciseId: current.id, draft: { ...exerciseDraft, name: exerciseDraft.name.trim() } })
+      setPendingEdit({ exerciseId: current.id, draft: normalized })
       setScopeModalOpen(true)
     } else {
-      await applyEdit(current.id, { ...exerciseDraft, name: exerciseDraft.name.trim() }, false)
+      await applyEdit(current.id, normalized, false)
     }
   }
 
@@ -236,11 +314,20 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
     if (!session) return
     const current = session.exercises.find((exercise) => exercise.id === exerciseId)
     if (!current) return
+    const normalized = normalizeDraft(draft)
     const edited: SessionExercise = {
       ...current,
-      ...draft,
+      name: normalized.name,
+      muscleGroup: normalized.muscleGroup,
+      plannedSets: normalized.plannedSets,
+      plannedReps: normalized.plannedReps,
+      plannedWeight: normalized.plannedWeight,
+      setMode: normalized.setMode,
+      recoverySeconds: normalized.recoverySeconds,
+      technique: normalized.technique,
+      trainerNotes: normalized.trainerNotes,
       isCustomized: true,
-      sets: resizeSets(current, draft.plannedSets, draft.plannedReps, draft.plannedWeight),
+      sets: setsFromDraft(normalized, current),
     }
     await persistSession({
       ...session,
@@ -251,20 +338,28 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
     if (updateTemplate && session.sourcePlanId && current.sourceExerciseId) {
       const plan = plans.find((item) => item.id === session.sourcePlanId)
       if (plan) {
+        const setTargets: PlannedSetTarget[] = normalized.setTargets.map((target, index) => ({
+          id: uid(),
+          setNumber: index + 1,
+          reps: target.reps ?? normalized.plannedReps,
+          weight: target.weight ?? normalized.plannedWeight,
+        }))
         const days = plan.days.map((day) => ({
           ...day,
           exercises: day.exercises.map((exercise) =>
             exercise.id === current.sourceExerciseId
               ? {
                   ...exercise,
-                  name: draft.name,
-                  muscleGroup: draft.muscleGroup,
-                  sets: draft.plannedSets,
-                  reps: draft.plannedReps,
-                  suggestedWeight: draft.plannedWeight,
-                  recoverySeconds: draft.recoverySeconds,
-                  technique: draft.technique,
-                  trainerNotes: draft.trainerNotes,
+                  name: normalized.name,
+                  muscleGroup: normalized.muscleGroup,
+                  sets: normalized.plannedSets,
+                  reps: normalized.plannedReps,
+                  suggestedWeight: normalized.plannedWeight,
+                  setMode: normalized.setMode,
+                  setTargets,
+                  recoverySeconds: normalized.recoverySeconds,
+                  technique: normalized.technique,
+                  trainerNotes: normalized.trainerNotes,
                 }
               : exercise,
           ),
@@ -297,24 +392,37 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
 
   const updateTemplateWeight = async (exercise: SessionExercise) => {
     if (!session?.sourcePlanId || !exercise.sourceExerciseId) return
-    const actualWeights = exercise.sets
-      .filter((set) => set.status === 'completed' && set.actualWeight !== undefined)
-      .map((set) => set.actualWeight as number)
-    if (!actualWeights.length) {
+    const completed = exercise.sets.filter((set) => set.status === 'completed' && set.actualWeight !== undefined)
+    if (!completed.length) {
       notify('Registra almeno una serie completata.')
       return
     }
-    const weight = actualWeights.at(-1) ?? actualWeights[0]
     const plan = plans.find((item) => item.id === session.sourcePlanId)
     if (!plan) return
+    const lastWeight = completed.at(-1)?.actualWeight ?? completed[0].actualWeight ?? 0
     const days = plan.days.map((day) => ({
       ...day,
-      exercises: day.exercises.map((item) =>
-        item.id === exercise.sourceExerciseId ? { ...item, suggestedWeight: weight } : item,
-      ),
+      exercises: day.exercises.map((item) => {
+        if (item.id !== exercise.sourceExerciseId) return item
+        if (item.setMode === 'custom') {
+          return {
+            ...item,
+            suggestedWeight: lastWeight,
+            setTargets: (item.setTargets ?? []).map((target, index) => ({
+              ...target,
+              weight: exercise.sets[index]?.actualWeight ?? target.weight,
+            })),
+          }
+        }
+        return {
+          ...item,
+          suggestedWeight: lastWeight,
+          setTargets: (item.setTargets ?? []).map((target) => ({ ...target, weight: lastWeight })),
+        }
+      }),
     }))
     await db.plans.put({ ...plan, days, revision: plan.revision + 1, updatedAt: new Date().toISOString() })
-    notify(`Peso consigliato aggiornato a ${weight} kg nella scheda.`)
+    notify(`Peso consigliato aggiornato nella scheda.`)
   }
 
   if (!session) {
@@ -338,7 +446,7 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
 
   return (
     <div className="view-shell workout-view">
-      <button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Torna al calendario</button>
+      <button className="back-link sticky-back-link" onClick={onBack}><ArrowLeft size={16} /> Torna al calendario</button>
       <section className="workout-header-card">
         <div className="session-topline">
           <span className={`status-badge status-${session.status}`}>
@@ -350,8 +458,8 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
         <p>{completedSets} di {totalSets} serie completate · {session.planNameSnapshot}</p>
         <div className="progress-track"><i style={{ width: `${progress}%` }} /></div>
         {session.hasLocalChanges && <span className="local-change-label">Contiene modifiche specifiche della sessione</span>}
-        {session.status === 'scheduled' && <button className="light-button" onClick={startWorkout}><Dumbbell size={17} /> Inizia allenamento</button>}
-        {session.status === 'skipped' && <button className="light-button" onClick={reopenWorkout}><RotateCcw size={17} /> Ripristina allenamento</button>}
+        {session.status === 'scheduled' && <button className="light-button" onClick={startWorkout}><Dumbbell size={18} /> Inizia allenamento</button>}
+        {session.status === 'skipped' && <button className="light-button" onClick={reopenWorkout}><RotateCcw size={18} /> Ripristina allenamento</button>}
       </section>
 
       {orderedExercises.map((exercise, exerciseIndex) => (
@@ -364,53 +472,55 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
             </div>
             {!readOnly && (
               <div className="mini-actions">
-                <button disabled={exerciseIndex === 0} onClick={() => moveExercise(exercise, -1)} aria-label="Sposta su"><ArrowUp size={15} /></button>
-                <button disabled={exerciseIndex === orderedExercises.length - 1} onClick={() => moveExercise(exercise, 1)} aria-label="Sposta giù"><ArrowDown size={15} /></button>
-                <button onClick={() => openEditExercise(exercise)} aria-label="Modifica"><Edit3 size={15} /></button>
-                <button className="danger" onClick={() => deleteExercise(exercise)} aria-label="Elimina"><Trash2 size={15} /></button>
+                <button disabled={exerciseIndex === 0} onClick={() => moveExercise(exercise, -1)} aria-label="Sposta su"><ArrowUp size={16} /></button>
+                <button disabled={exerciseIndex === orderedExercises.length - 1} onClick={() => moveExercise(exercise, 1)} aria-label="Sposta giù"><ArrowDown size={16} /></button>
+                <button onClick={() => openEditExercise(exercise)} aria-label="Modifica"><Edit3 size={16} /></button>
+                <button className="danger" onClick={() => deleteExercise(exercise)} aria-label="Elimina"><Trash2 size={16} /></button>
               </div>
             )}
           </div>
 
-          <div className="programmed-line">
-            <b>Programmato:</b> {exercise.plannedSets} serie × {exercise.plannedReps} ripetizioni · {exercise.plannedWeight} kg
-            {exercise.recoverySeconds > 0 && ` · recupero ${exercise.recoverySeconds} sec`}
+          <div className="exercise-guidance">
+            {exercise.recoverySeconds > 0 && <span><Timer size={15} /> Recupero: <b>{exercise.recoverySeconds} secondi</b></span>}
+            {exercise.technique && <p><b>Tecnica:</b> {exercise.technique}</p>}
+            {exercise.trainerNotes && <p><b>Note:</b> {exercise.trainerNotes}</p>}
           </div>
 
           <div className="set-list">
             <div className="set-label-row"><span>Serie</span><span>Peso reale</span><span>Ripetizioni</span><span>Stato</span></div>
             {exercise.sets.map((set) => (
               <div className={`set-row ${set.status}`} key={set.id}>
-                <span className="set-number">{set.setNumber}</span>
+                <span className="set-number"><b>{set.setNumber}</b><small>{set.targetReps}×{set.targetWeight || '—'}</small></span>
                 <label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
+                  <NumericInput
+                    mode="decimal"
+                    min={0}
                     disabled={readOnly}
-                    value={set.actualWeight ?? ''}
+                    value={set.actualWeight}
                     placeholder={String(set.targetWeight)}
-                    onChange={(event) => updateSet(exercise.id, set.id, 'actualWeight', event.target.value === '' ? undefined : Number(event.target.value))}
+                    ariaLabel={`Peso reale serie ${set.setNumber}`}
+                    onChange={(value) => updateSet(exercise.id, set.id, 'actualWeight', value)}
                   />
                   <small>kg</small>
                 </label>
                 <label>
-                  <input
-                    type="number"
-                    min="0"
+                  <NumericInput
+                    mode="integer"
+                    min={0}
                     disabled={readOnly}
-                    value={set.actualReps ?? ''}
+                    value={set.actualReps}
                     placeholder={String(set.targetReps)}
-                    onChange={(event) => updateSet(exercise.id, set.id, 'actualReps', event.target.value === '' ? undefined : Number(event.target.value))}
+                    ariaLabel={`Ripetizioni serie ${set.setNumber}`}
+                    onChange={(value) => updateSet(exercise.id, set.id, 'actualReps', value)}
                   />
                   <small>reps</small>
                 </label>
                 <div className="set-actions">
                   <button disabled={readOnly} className="set-check" onClick={() => toggleSet(exercise.id, set.id)} aria-label="Completa serie">
-                    {set.status === 'completed' ? <Check size={18} /> : <Circle size={17} />}
+                    {set.status === 'completed' ? <Check size={20} /> : <Circle size={19} />}
                   </button>
                   <button disabled={readOnly} className="set-skip" onClick={() => skipSet(exercise.id, set.id)} aria-label="Salta serie">
-                    <SkipForward size={14} />
+                    <SkipForward size={15} />
                   </button>
                 </div>
               </div>
@@ -419,7 +529,7 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
 
           {session.status === 'completed' && exercise.sourceExerciseId && (
             <button className="template-update-button" onClick={() => updateTemplateWeight(exercise)}>
-              <CopyCheck size={16} /> Usa l’ultimo peso nella scheda originale
+              <CopyCheck size={16} /> Usa i pesi eseguiti nella scheda originale
             </button>
           )}
         </article>
@@ -427,10 +537,9 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
 
       {!readOnly && <button className="dashed-button" onClick={openNewExercise}><Plus size={17} /> Aggiungi esercizio solo a questa sessione</button>}
 
-
       <div className="workout-actions">
-        {session.status === 'started' && <button className="primary-button" onClick={completeWorkout}><Check size={17} /> Completa allenamento</button>}
-        {session.status === 'scheduled' && <button className="primary-button" onClick={startWorkout}><Dumbbell size={17} /> Inizia allenamento</button>}
+        {session.status === 'started' && <button className="primary-button" onClick={completeWorkout}><Check size={18} /> Completa allenamento</button>}
+        {session.status === 'scheduled' && <button className="primary-button" onClick={startWorkout}><Dumbbell size={18} /> Inizia allenamento</button>}
         {!readOnly && <button className="secondary-button danger-text" onClick={skipWorkout}>Segna come saltato</button>}
       </div>
 
@@ -445,6 +554,12 @@ export default function WorkoutView({ plans, sessions, activeSessionId, onSelect
           ))}
         </section>
       )}
+
+      <nav className="session-shortcuts" aria-label="Scorciatoie allenamento">
+        <button onClick={onBack}><CalendarDays size={18} /><span>Calendario</span></button>
+        <button className="active"><Dumbbell size={18} /><span>Allenamento</span></button>
+        <button onClick={onOpenTimer}><Timer size={18} /><span>Timer</span></button>
+      </nav>
 
       <ExerciseModal
         open={exerciseModalOpen}
@@ -487,6 +602,57 @@ interface ExerciseModalProps {
 }
 
 function ExerciseModal({ open, draft, setDraft, onClose, onSave, editing }: ExerciseModalProps) {
+  const switchMode = (setMode: SetMode) => {
+    if (setMode === 'custom') {
+      const count = Math.max(1, draft.plannedSets ?? 1)
+      const reps = Math.max(1, draft.plannedReps ?? 1)
+      const weight = Math.max(0, draft.plannedWeight ?? 0)
+      setDraft({ ...draft, setMode, setTargets: standardTargets(count, reps, weight) })
+    } else {
+      const first = draft.setTargets[0]
+      setDraft({
+        ...draft,
+        setMode,
+        plannedSets: Math.max(1, draft.setTargets.length || draft.plannedSets || 1),
+        plannedReps: first?.reps ?? draft.plannedReps ?? 1,
+        plannedWeight: first?.weight ?? draft.plannedWeight ?? 0,
+      })
+    }
+  }
+
+  const updateTarget = (id: string, field: 'reps' | 'weight', value: number | undefined) => {
+    setDraft({
+      ...draft,
+      setTargets: draft.setTargets.map((target) => (target.id === id ? { ...target, [field]: value } : target)),
+    })
+  }
+
+  const addTarget = () => {
+    const last = draft.setTargets.at(-1)
+    setDraft({
+      ...draft,
+      setTargets: [
+        ...draft.setTargets,
+        {
+          id: uid(),
+          setNumber: draft.setTargets.length + 1,
+          reps: last?.reps ?? draft.plannedReps ?? 10,
+          weight: last?.weight ?? draft.plannedWeight ?? 0,
+        },
+      ],
+    })
+  }
+
+  const removeTarget = (id: string) => {
+    if (draft.setTargets.length <= 1) return
+    setDraft({
+      ...draft,
+      setTargets: draft.setTargets
+        .filter((target) => target.id !== id)
+        .map((target, index) => ({ ...target, setNumber: index + 1 })),
+    })
+  }
+
   return (
     <Modal
       open={open}
@@ -498,10 +664,37 @@ function ExerciseModal({ open, draft, setDraft, onClose, onSave, editing }: Exer
       <div className="form-stack two-columns">
         <label className="full"><span>Nome esercizio</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
         <label className="full"><span>Gruppo muscolare</span><input value={draft.muscleGroup} onChange={(event) => setDraft({ ...draft, muscleGroup: event.target.value })} /></label>
-        <label><span>Serie previste</span><input type="number" min="1" value={draft.plannedSets} onChange={(event) => setDraft({ ...draft, plannedSets: Math.max(1, Number(event.target.value)) })} /></label>
-        <label><span>Ripetizioni previste</span><input type="number" min="1" value={draft.plannedReps} onChange={(event) => setDraft({ ...draft, plannedReps: Math.max(1, Number(event.target.value)) })} /></label>
-        <label><span>Peso previsto (kg)</span><input type="number" min="0" step="0.5" value={draft.plannedWeight} onChange={(event) => setDraft({ ...draft, plannedWeight: Number(event.target.value) })} /></label>
-        <label><span>Recupero (secondi)</span><input type="number" min="0" step="5" value={draft.recoverySeconds} onChange={(event) => setDraft({ ...draft, recoverySeconds: Number(event.target.value) })} /></label>
+
+        <div className="full set-mode-field">
+          <span>Tipo di serie</span>
+          <div className="segmented-control">
+            <button className={draft.setMode === 'standard' ? 'active' : ''} onClick={() => switchMode('standard')}>Standard</button>
+            <button className={draft.setMode === 'custom' ? 'active' : ''} onClick={() => switchMode('custom')}>Piramidale / personalizzata</button>
+          </div>
+        </div>
+
+        {draft.setMode === 'standard' ? (
+          <>
+            <label><span>Serie previste</span><NumericInput value={draft.plannedSets} min={1} fallback={1} onChange={(value) => setDraft({ ...draft, plannedSets: value })} /></label>
+            <label><span>Ripetizioni previste</span><NumericInput value={draft.plannedReps} min={1} fallback={1} onChange={(value) => setDraft({ ...draft, plannedReps: value })} /></label>
+            <label><span>Peso previsto (kg)</span><NumericInput mode="decimal" value={draft.plannedWeight} min={0} fallback={0} onChange={(value) => setDraft({ ...draft, plannedWeight: value })} /></label>
+          </>
+        ) : (
+          <div className="full custom-sets-editor">
+            <div className="custom-set-head"><span>Serie</span><span>Ripetizioni</span><span>Peso kg</span><span /></div>
+            {draft.setTargets.map((target, index) => (
+              <div className="custom-set-row" key={target.id}>
+                <b>{index + 1}</b>
+                <NumericInput value={target.reps} min={1} fallback={1} onChange={(value) => updateTarget(target.id, 'reps', value)} />
+                <NumericInput mode="decimal" value={target.weight} min={0} fallback={0} onChange={(value) => updateTarget(target.id, 'weight', value)} />
+                <button className="remove-set-button" disabled={draft.setTargets.length <= 1} onClick={() => removeTarget(target.id)} aria-label="Rimuovi serie"><Trash2 size={15} /></button>
+              </div>
+            ))}
+            <button className="add-set-button" onClick={addTarget}><Plus size={16} /> Aggiungi serie</button>
+          </div>
+        )}
+
+        <label><span>Recupero (secondi)</span><NumericInput value={draft.recoverySeconds} min={0} fallback={0} onChange={(value) => setDraft({ ...draft, recoverySeconds: value })} /></label>
         <label className="full"><span>Tecnica</span><input value={draft.technique} onChange={(event) => setDraft({ ...draft, technique: event.target.value })} /></label>
         <label className="full"><span>Note del personal trainer</span><textarea rows={2} value={draft.trainerNotes} onChange={(event) => setDraft({ ...draft, trainerNotes: event.target.value })} /></label>
         <div className="modal-actions full"><button className="primary-button" disabled={!draft.name.trim()} onClick={onSave}>Continua</button><button className="secondary-button" onClick={onClose}>Annulla</button></div>

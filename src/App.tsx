@@ -14,6 +14,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('calendar')
   const [selectedDate, setSelectedDate] = useState(localDate())
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [sessionScreen, setSessionScreen] = useState<'workout' | 'timer'>('workout')
   const [toast, setToast] = useState('')
   const toastTimer = useRef<number | undefined>(undefined)
   const contentRef = useRef<HTMLElement | null>(null)
@@ -25,7 +26,7 @@ export default function App() {
 
   useEffect(() => {
     window.requestAnimationFrame(() => contentRef.current?.scrollTo({ top: 0 }))
-  }, [activeSessionId])
+  }, [activeSessionId, sessionScreen])
 
   const notify = (message: string) => {
     setToast(message)
@@ -35,10 +36,12 @@ export default function App() {
 
   const openSession = (id: string) => {
     setActiveSessionId(id)
+    setSessionScreen('workout')
   }
 
   const closeSession = () => {
     setActiveSessionId(null)
+    setSessionScreen('workout')
     setActiveTab('calendar')
   }
 
@@ -57,6 +60,12 @@ export default function App() {
                 <b>Caricamento dati…</b>
               </section>
             </div>
+          ) : activeSessionId && sessionScreen === 'timer' ? (
+            <TimerView
+              sessionMode
+              onBackToWorkout={() => setSessionScreen('workout')}
+              onBackToCalendar={closeSession}
+            />
           ) : activeSessionId ? (
             <WorkoutView
               plans={availablePlans}
@@ -64,6 +73,7 @@ export default function App() {
               activeSessionId={activeSessionId}
               onSelectSession={setActiveSessionId}
               onBack={closeSession}
+              onOpenTimer={() => setSessionScreen('timer')}
               notify={notify}
             />
           ) : (

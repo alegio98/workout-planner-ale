@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   CalendarRange,
   Copy,
   Edit3,
+  FileText,
   GripVertical,
   MoreHorizontal,
   Plus,
@@ -12,9 +14,11 @@ import {
   UserRound,
 } from 'lucide-react'
 import Modal from '../components/Modal'
+import NumericInput from '../components/NumericInput'
 import { db } from '../db'
-import type { PlanDay, PlanExercise, WorkoutPlan } from '../types'
-import { localDate, makeEmptyExercise, normalizeOrders, safeClone, sortedDays, sortedExercises, uid } from '../utils'
+import { parsePlanText } from '../planTextParser'
+import type { PlanDay, PlanExercise, SetMode, WorkoutPlan } from '../types'
+import { exercisePrescriptionLabel, localDate, makeEmptyExercise, normalizeOrders, safeClone, sortedDays, sortedExercises, uid } from '../utils'
 
 interface PlansViewProps {
   plans: WorkoutPlan[]
@@ -23,7 +27,24 @@ interface PlansViewProps {
 
 type PlanDraft = Pick<WorkoutPlan, 'name' | 'trainerName' | 'startDate' | 'endDate' | 'durationWeeks' | 'notes'>
 type DayDraft = Pick<PlanDay, 'name' | 'focus' | 'notes'>
-type ExerciseDraft = Omit<PlanExercise, 'id' | 'order'>
+interface ExerciseSetTargetDraft {
+  id: string
+  setNumber: number
+  reps?: number
+  weight?: number
+}
+interface ExerciseDraft {
+  name: string
+  muscleGroup: string
+  sets?: number
+  reps?: number
+  suggestedWeight?: number
+  setMode: SetMode
+  setTargets: ExerciseSetTargetDraft[]
+  recoverySeconds?: number
+  technique: string
+  trainerNotes: string
+}
 
 const emptyPlanDraft = (): PlanDraft => ({
   name: '',
@@ -42,8 +63,47 @@ const emptyDayDraft = (position: number): DayDraft => ({
 
 const emptyExerciseDraft = (): ExerciseDraft => {
   const exercise = makeEmptyExercise(0)
-  const { id: _id, order: _order, ...draft } = exercise
-  return draft
+  return {
+    name: exercise.name,
+    muscleGroup: exercise.muscleGroup,
+    sets: exercise.sets,
+    reps: exercise.reps,
+    suggestedWeight: exercise.suggestedWeight,
+    setMode: exercise.setMode,
+    setTargets: exercise.setTargets,
+    recoverySeconds: exercise.recoverySeconds,
+    technique: exercise.technique,
+    trainerNotes: exercise.trainerNotes,
+  }
+}
+
+const normalizeExerciseDraft = (draft: ExerciseDraft) => {
+  const sets = Math.max(1, draft.sets ?? draft.setTargets.length ?? 1)
+  const reps = Math.max(1, draft.reps ?? 1)
+  const suggestedWeight = Math.max(0, draft.suggestedWeight ?? 0)
+  const recoverySeconds = Math.max(0, draft.recoverySeconds ?? 0)
+  const setTargets = draft.setMode === 'custom' && draft.setTargets.length
+    ? draft.setTargets.map((target, index) => ({
+        id: target.id || uid(),
+        setNumber: index + 1,
+        reps: Math.max(1, target.reps || reps),
+        weight: Math.max(0, target.weight || 0),
+      }))
+    : Array.from({ length: sets }, (_, index) => ({
+        id: uid(),
+        setNumber: index + 1,
+        reps,
+        weight: suggestedWeight,
+      }))
+
+  return {
+    ...draft,
+    sets: setTargets.length,
+    reps: setTargets[0]?.reps ?? reps,
+    suggestedWeight: setTargets[0]?.weight ?? suggestedWeight,
+    recoverySeconds,
+    setTargets,
+  }
 }
 
 export default function PlansView({ plans, notify }: PlansViewProps) {
@@ -58,6 +118,9 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
   const [exerciseModalOpen, setExerciseModalOpen] = useState(false)
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
   const [exerciseDraft, setExerciseDraft] = useState<ExerciseDraft>(emptyExerciseDraft())
+  const [importScreenOpen, setImportScreenOpen] = useState(false)
+  const [importName, setImportName] = useState('')
+  const [importText, setImportText] = useState('')
 
   const selectedPlan = plans.find((plan) => plan.id === selectedPlanId) ?? plans[0]
   const orderedDays = useMemo(() => (selectedPlan ? sortedDays(selectedPlan) : []), [selectedPlan])
@@ -89,6 +152,49 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
     setEditingPlanId(null)
     setPlanDraft(emptyPlanDraft())
     setPlanModalOpen(true)
+  }
+
+  const openTextImport = () => {
+    setImportName('')
+    setImportText('')
+    setImportScreenOpen(true)
+  }
+
+  const importPlanFromText = async () => {
+    const parsed = parsePlanText(importText)
+    const exerciseCount = parsed.days.reduce((total, day) => total + day.exercises.length, 0)
+
+    if (!importName.trim()) {
+      notify('Inserisci un nome per la scheda.')
+      return
+    }
+    if (!parsed.days.length || !exerciseCount) {
+      notify('Non ho trovato giornate ed esercizi nel testo.')
+      return
+    }
+
+    const now = new Date().toISOString()
+    const plan: WorkoutPlan = {
+      id: uid(),
+      name: importName.trim(),
+      trainerName: '',
+      startDate: localDate(),
+      endDate: '',
+      durationWeeks: undefined,
+      notes: '',
+      revision: 1,
+      days: parsed.days,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await db.plans.add(plan)
+    setSelectedPlanId(plan.id)
+    setSelectedDayId(plan.days[0]?.id ?? '')
+    setImportScreenOpen(false)
+
+    const ignored = parsed.ignoredLines.length ? ` ${parsed.ignoredLines.length} righe non riconosciute.` : ''
+    notify(`Scheda importata: ${plan.days.length} giornate e ${exerciseCount} esercizi.${ignored}`)
   }
 
   const openEditPlan = () => {
@@ -152,7 +258,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
       days: selectedPlan.days.map((day) => ({
         ...safeClone(day),
         id: uid(),
-        exercises: day.exercises.map((exercise) => ({ ...safeClone(exercise), id: uid() })),
+        exercises: day.exercises.map((exercise) => ({ ...safeClone(exercise), id: uid(), setTargets: (exercise.setTargets ?? []).map((target) => ({ ...target, id: uid() })) })),
       })),
     }
     await db.plans.add(copy)
@@ -207,7 +313,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
       id: uid(),
       name: `${selectedDay.name} copia`,
       order: selectedPlan.days.length,
-      exercises: selectedDay.exercises.map((exercise) => ({ ...safeClone(exercise), id: uid() })),
+      exercises: selectedDay.exercises.map((exercise) => ({ ...safeClone(exercise), id: uid(), setTargets: (exercise.setTargets ?? []).map((target) => ({ ...target, id: uid() })) })),
     }
     await persistPlan({ ...selectedPlan, days: [...selectedPlan.days, copy] }, 'Giornata duplicata.')
     setSelectedDayId(copy.id)
@@ -236,23 +342,41 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
   }
 
   const openEditExercise = (exercise: PlanExercise) => {
-    const { id: _id, order: _order, ...draft } = exercise
     setEditingExerciseId(exercise.id)
-    setExerciseDraft(draft)
+    setExerciseDraft({
+      name: exercise.name,
+      muscleGroup: exercise.muscleGroup,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      suggestedWeight: exercise.suggestedWeight,
+      setMode: exercise.setMode ?? 'standard',
+      setTargets: (exercise.setTargets ?? []).map((target) => ({ ...target })),
+      recoverySeconds: exercise.recoverySeconds,
+      technique: exercise.technique,
+      trainerNotes: exercise.trainerNotes,
+    })
     setExerciseModalOpen(true)
   }
 
   const saveExercise = async () => {
     if (!selectedPlan || !selectedDay || !exerciseDraft.name.trim()) return
-    const exercises = editingExerciseId
+    const normalized = normalizeExerciseDraft({ ...exerciseDraft, name: exerciseDraft.name.trim() })
+    const persistedDraft = {
+      ...normalized,
+      sets: normalized.sets,
+      reps: normalized.reps,
+      suggestedWeight: normalized.suggestedWeight,
+      recoverySeconds: normalized.recoverySeconds,
+    }
+    const exercises: PlanExercise[] = editingExerciseId
       ? selectedDay.exercises.map((exercise) =>
           exercise.id === editingExerciseId
-            ? { ...exercise, ...exerciseDraft, name: exerciseDraft.name.trim() }
+            ? { ...exercise, ...persistedDraft }
             : exercise,
         )
       : [
           ...selectedDay.exercises,
-          { id: uid(), order: selectedDay.exercises.length, ...exerciseDraft, name: exerciseDraft.name.trim() },
+          { id: uid(), order: selectedDay.exercises.length, ...persistedDraft },
         ]
     const days = selectedPlan.days.map((day) => (day.id === selectedDay.id ? { ...day, exercises } : day))
     await persistPlan({ ...selectedPlan, days }, editingExerciseId ? 'Esercizio aggiornato.' : 'Esercizio aggiunto.')
@@ -261,7 +385,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
 
   const duplicateExercise = async (exercise: PlanExercise) => {
     if (!selectedPlan || !selectedDay) return
-    const copy = { ...safeClone(exercise), id: uid(), name: `${exercise.name} copia`, order: selectedDay.exercises.length }
+    const copy = { ...safeClone(exercise), id: uid(), name: `${exercise.name} copia`, order: selectedDay.exercises.length, setTargets: (exercise.setTargets ?? []).map((target) => ({ ...target, id: uid() })) }
     const days = selectedPlan.days.map((day) =>
       day.id === selectedDay.id ? { ...day, exercises: [...day.exercises, copy] } : day,
     )
@@ -288,18 +412,38 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
     await persistPlan({ ...selectedPlan, days })
   }
 
+  if (importScreenOpen) {
+    return (
+      <TextImportScreen
+        name={importName}
+        source={importText}
+        setName={setImportName}
+        setSource={setImportText}
+        onBack={() => setImportScreenOpen(false)}
+        onImport={importPlanFromText}
+      />
+    )
+  }
+
   if (!plans.length) {
     return (
       <div className="view-shell">
         <section className="page-heading">
           <div><span className="eyebrow">Le mie schede</span><h1>Scheda palestra</h1></div>
-          <button className="primary-button compact" onClick={openNewPlan}><Plus size={17} /> Nuova</button>
+          <div className="page-actions">
+            <button className="secondary-button compact" onClick={openTextImport}><FileText size={16} /> Importa</button>
+            <button className="primary-button compact" onClick={openNewPlan}><Plus size={17} /> Nuova</button>
+          </div>
         </section>
-        <button className="empty-state large" onClick={openNewPlan}>
+        <div className="empty-state large static">
           <span className="empty-icon"><Plus size={24} /></span>
           <b>Crea la tua prima scheda</b>
-          <span>Inserisci le indicazioni ricevute dal personal trainer.</span>
-        </button>
+          <span>Puoi inserirla a mano oppure incollare il testo ricevuto dal personal trainer.</span>
+          <div className="empty-state-actions">
+            <button className="secondary-button" onClick={openTextImport}><FileText size={16} /> Importa testo</button>
+            <button className="primary-button" onClick={openNewPlan}><Plus size={16} /> Inserisci a mano</button>
+          </div>
+        </div>
         <PlanModal
           open={planModalOpen}
           draft={planDraft}
@@ -308,7 +452,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
           onSave={savePlan}
           editing={false}
         />
-      </div>
+        </div>
     )
   }
 
@@ -316,7 +460,10 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
     <div className="view-shell">
       <section className="page-heading">
         <div><span className="eyebrow">Le mie schede</span><h1>Scheda palestra</h1></div>
-        <button className="primary-button compact" onClick={openNewPlan}><Plus size={17} /> Nuova</button>
+        <div className="page-actions">
+          <button className="secondary-button compact" onClick={openTextImport}><FileText size={16} /> Importa</button>
+          <button className="primary-button compact" onClick={openNewPlan}><Plus size={17} /> Nuova</button>
+        </div>
       </section>
 
       {plans.length > 1 && (
@@ -384,7 +531,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
                 <div className="drag-handle"><GripVertical size={17} /></div>
                 <button className="exercise-main" onClick={() => openEditExercise(exercise)}>
                   <b>{exercise.name}</b>
-                  <span>{exercise.sets} × {exercise.reps} · {exercise.suggestedWeight || '—'} kg · recupero {exercise.recoverySeconds} sec</span>
+                  <span>{exercisePrescriptionLabel(exercise)}</span>
                 </button>
                 <div className="exercise-actions">
                   <button disabled={index === 0} onClick={() => moveExercise(exercise, -1)} aria-label="Sposta su"><ArrowUp size={14} /></button>
@@ -416,6 +563,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
         editing={Boolean(editingPlanId)}
       />
 
+
       <Modal open={dayModalOpen} title={editingDayId ? 'Modifica giornata' : 'Nuova giornata'} onClose={() => setDayModalOpen(false)}>
         <div className="form-stack">
           <label><span>Nome</span><input value={dayDraft.name} onChange={(event) => setDayDraft({ ...dayDraft, name: event.target.value })} placeholder="Giorno A" /></label>
@@ -437,6 +585,81 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
   )
 }
 
+interface TextImportScreenProps {
+  name: string
+  source: string
+  setName: (value: string) => void
+  setSource: (value: string) => void
+  onBack: () => void
+  onImport: () => void
+}
+
+function TextImportScreen({ name, source, setName, setSource, onBack, onImport }: TextImportScreenProps) {
+  const parsed = useMemo(() => parsePlanText(source), [source])
+  const exerciseCount = parsed.days.reduce((total, day) => total + day.exercises.length, 0)
+  const canImport = Boolean(name.trim() && parsed.days.length && exerciseCount)
+
+  return (
+    <div className="view-shell import-screen">
+      <header className="import-screen-header">
+        <button className="icon-button import-back-button" onClick={onBack} aria-label="Torna alle schede">
+          <ArrowLeft size={21} />
+        </button>
+        <div>
+          <span className="eyebrow">Importazione rapida</span>
+          <h1>Importa scheda da testo</h1>
+        </div>
+      </header>
+
+      <p className="import-screen-description">
+        Incolla il testo della scheda. Giorni, esercizi, serie, ripetizioni e note tra parentesi verranno organizzati automaticamente.
+      </p>
+
+      <div className="form-stack import-plan-form import-screen-form">
+        <label>
+          <span>Nome della scheda</span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Scheda giugno"
+          />
+        </label>
+
+        <label>
+          <span>Testo strutturato</span>
+          <textarea
+            className="plan-textarea import-screen-textarea"
+            rows={16}
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+            placeholder={`Giorno A - Petto e tricipiti
+1) Panca piana, 10 8 8 6 (discesa controllata)
+2) Croci ai cavi, 8 8 8 8
+
+Giorno B - Schiena
+1) Lat machine, 10 10 8 8`}
+            autoCapitalize="sentences"
+            spellCheck
+          />
+        </label>
+
+        {source.trim() && (
+          <div className={`import-preview ${parsed.days.length ? 'valid' : 'invalid'}`}>
+            <b>{parsed.days.length} giornate · {exerciseCount} esercizi riconosciuti</b>
+            <span>Le note tra parentesi vengono associate all’esercizio.</span>
+            {parsed.ignoredLines.length > 0 && <small>{parsed.ignoredLines.length} righe verranno ignorate.</small>}
+          </div>
+        )}
+      </div>
+
+      <div className="import-screen-actions">
+        <button className="secondary-button" onClick={onBack}>Annulla</button>
+        <button className="primary-button" disabled={!canImport} onClick={onImport}>Crea scheda</button>
+      </div>
+    </div>
+  )
+}
+
 interface PlanModalProps {
   open: boolean
   draft: PlanDraft
@@ -454,7 +677,7 @@ function PlanModal({ open, draft, setDraft, onClose, onSave, editing }: PlanModa
         <label className="full"><span>Personal trainer</span><input value={draft.trainerName} onChange={(event) => setDraft({ ...draft, trainerName: event.target.value })} placeholder="Facoltativo" /></label>
         <label><span>Data di inizio</span><input type="date" value={draft.startDate} onChange={(event) => setDraft({ ...draft, startDate: event.target.value })} /></label>
         <label><span>Data di fine</span><input type="date" value={draft.endDate} onChange={(event) => setDraft({ ...draft, endDate: event.target.value })} /></label>
-        <label><span>Durata prevista</span><input type="number" min="1" value={draft.durationWeeks ?? ''} onChange={(event) => setDraft({ ...draft, durationWeeks: Number(event.target.value) || undefined })} /></label>
+        <label><span>Durata prevista</span><NumericInput value={draft.durationWeeks} min={1} onChange={(value) => setDraft({ ...draft, durationWeeks: value })} /></label>
         <label className="full"><span>Note generali</span><textarea rows={3} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></label>
         <div className="modal-actions full"><button className="primary-button" disabled={!draft.name.trim()} onClick={onSave}>Salva scheda</button><button className="secondary-button" onClick={onClose}>Annulla</button></div>
       </div>
@@ -472,15 +695,105 @@ interface ExerciseModalProps {
 }
 
 function ExerciseModal({ open, draft, setDraft, onClose, onSave, editing }: ExerciseModalProps) {
+  const switchMode = (setMode: SetMode) => {
+    if (setMode === 'custom') {
+      const count = Math.max(1, draft.sets ?? 1)
+      const reps = Math.max(1, draft.reps ?? 1)
+      const weight = Math.max(0, draft.suggestedWeight ?? 0)
+      setDraft({
+        ...draft,
+        setMode,
+        setTargets: Array.from({ length: count }, (_, index) => ({
+          id: uid(),
+          setNumber: index + 1,
+          reps,
+          weight,
+        })),
+      })
+      return
+    }
+
+    const first = draft.setTargets[0]
+    setDraft({
+      ...draft,
+      setMode,
+      sets: Math.max(1, draft.setTargets.length || draft.sets || 1),
+      reps: first?.reps ?? draft.reps ?? 1,
+      suggestedWeight: first?.weight ?? draft.suggestedWeight ?? 0,
+    })
+  }
+
+  const updateTarget = (id: string, field: 'reps' | 'weight', value: number | undefined) => {
+    setDraft({
+      ...draft,
+      setTargets: draft.setTargets.map((target) =>
+        target.id === id ? { ...target, [field]: value } : target,
+      ),
+    })
+  }
+
+  const addTarget = () => {
+    const last = draft.setTargets.at(-1)
+    setDraft({
+      ...draft,
+      setTargets: [
+        ...draft.setTargets,
+        {
+          id: uid(),
+          setNumber: draft.setTargets.length + 1,
+          reps: last?.reps ?? draft.reps ?? 10,
+          weight: last?.weight ?? draft.suggestedWeight ?? 0,
+        },
+      ],
+    })
+  }
+
+  const removeTarget = (id: string) => {
+    if (draft.setTargets.length <= 1) return
+    setDraft({
+      ...draft,
+      setTargets: draft.setTargets
+        .filter((target) => target.id !== id)
+        .map((target, index) => ({ ...target, setNumber: index + 1 })),
+    })
+  }
+
   return (
     <Modal open={open} title={editing ? 'Modifica esercizio' : 'Nuovo esercizio'} onClose={onClose} wide>
       <div className="form-stack two-columns">
         <label className="full"><span>Nome esercizio</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Panca piana bilanciere" /></label>
         <label className="full"><span>Gruppo muscolare</span><input value={draft.muscleGroup} onChange={(event) => setDraft({ ...draft, muscleGroup: event.target.value })} placeholder="Petto" /></label>
-        <label><span>Serie</span><input type="number" min="1" value={draft.sets} onChange={(event) => setDraft({ ...draft, sets: Math.max(1, Number(event.target.value)) })} /></label>
-        <label><span>Ripetizioni</span><input type="number" min="1" value={draft.reps} onChange={(event) => setDraft({ ...draft, reps: Math.max(1, Number(event.target.value)) })} /></label>
-        <label><span>Peso consigliato (kg)</span><input type="number" min="0" step="0.5" value={draft.suggestedWeight} onChange={(event) => setDraft({ ...draft, suggestedWeight: Number(event.target.value) })} /></label>
-        <label><span>Recupero (secondi)</span><input type="number" min="0" step="5" value={draft.recoverySeconds} onChange={(event) => setDraft({ ...draft, recoverySeconds: Number(event.target.value) })} /></label>
+
+        <div className="full set-mode-field">
+          <span>Tipo di serie</span>
+          <div className="segmented-control">
+            <button className={draft.setMode === 'standard' ? 'active' : ''} onClick={() => switchMode('standard')}>Standard</button>
+            <button className={draft.setMode === 'custom' ? 'active' : ''} onClick={() => switchMode('custom')}>Piramidale / personalizzata</button>
+          </div>
+        </div>
+
+        {draft.setMode === 'standard' ? (
+          <>
+            <label><span>Serie</span><NumericInput value={draft.sets} min={1} fallback={1} onChange={(value) => setDraft({ ...draft, sets: value })} /></label>
+            <label><span>Ripetizioni</span><NumericInput value={draft.reps} min={1} fallback={1} onChange={(value) => setDraft({ ...draft, reps: value })} /></label>
+            <label><span>Peso consigliato (kg)</span><NumericInput mode="decimal" value={draft.suggestedWeight} min={0} fallback={0} onChange={(value) => setDraft({ ...draft, suggestedWeight: value })} /></label>
+          </>
+        ) : (
+          <div className="full custom-sets-editor">
+            <div className="custom-set-head"><span>Serie</span><span>Ripetizioni</span><span>Peso kg</span><span /></div>
+            {draft.setTargets.map((target, index) => (
+              <div className="custom-set-row" key={target.id}>
+                <b>{index + 1}</b>
+                <NumericInput value={target.reps} min={1} fallback={1} onChange={(value) => updateTarget(target.id, 'reps', value)} />
+                <NumericInput mode="decimal" value={target.weight} min={0} fallback={0} onChange={(value) => updateTarget(target.id, 'weight', value)} />
+                <button className="remove-set-button" disabled={draft.setTargets.length <= 1} onClick={() => removeTarget(target.id)} aria-label="Rimuovi serie"><Trash2 size={15} /></button>
+              </div>
+            ))}
+            <button className="add-set-button" onClick={addTarget}><Plus size={16} /> Aggiungi serie</button>
+          </div>
+        )}
+
+        <label><span>Recupero (secondi)</span><NumericInput value={draft.recoverySeconds} min={0} fallback={0} onChange={(value) => setDraft({ ...draft, recoverySeconds: value })} /></label>
         <label className="full"><span>Tecnica o modalità</span><input value={draft.technique} onChange={(event) => setDraft({ ...draft, technique: event.target.value })} placeholder="Esecuzione controllata" /></label>
         <label className="full"><span>Note del personal trainer</span><textarea rows={3} value={draft.trainerNotes} onChange={(event) => setDraft({ ...draft, trainerNotes: event.target.value })} /></label>
         <div className="modal-actions full"><button className="primary-button" disabled={!draft.name.trim()} onClick={onSave}>Salva esercizio</button><button className="secondary-button" onClick={onClose}>Annulla</button></div>
