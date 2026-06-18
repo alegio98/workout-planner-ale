@@ -429,7 +429,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
     return (
       <div className="view-shell">
         <section className="page-heading">
-          <div><span className="eyebrow">Le mie schede</span><h1>Scheda palestra</h1></div>
+          <div><span className="eyebrow">Le mie schede</span><h1>Scheda</h1></div>
           <div className="page-actions">
             <button className="secondary-button compact" onClick={openTextImport}><FileText size={16} /> Importa</button>
             <button className="primary-button compact" onClick={openNewPlan}><Plus size={17} /> Nuova</button>
@@ -459,7 +459,7 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
   return (
     <div className="view-shell">
       <section className="page-heading">
-        <div><span className="eyebrow">Le mie schede</span><h1>Scheda palestra</h1></div>
+        <div><span className="eyebrow">Le mie schede</span><h1>Scheda</h1></div>
         <div className="page-actions">
           <button className="secondary-button compact" onClick={openTextImport}><FileText size={16} /> Importa</button>
           <button className="primary-button compact" onClick={openNewPlan}><Plus size={17} /> Nuova</button>
@@ -481,7 +481,6 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
             <h2>{selectedPlan.name}</h2>
             <p><UserRound size={14} /> {selectedPlan.trainerName || 'Personal trainer non indicato'}</p>
           </div>
-          <button className="icon-button"><MoreHorizontal size={20} /></button>
         </div>
         <div className="plan-summary-meta">
           <span><CalendarRange size={14} /> Dal {new Date(`${selectedPlan.startDate}T12:00:00`).toLocaleDateString('it-IT')}</span>
@@ -517,8 +516,6 @@ export default function PlansView({ plans, notify }: PlansViewProps) {
               <p>{orderedExercises.length} esercizi · circa {Math.max(20, orderedExercises.length * 9)} minuti</p>
             </div>
             <div className="mini-actions">
-              <button onClick={() => moveDay(-1)} aria-label="Sposta prima"><ArrowUp size={16} /></button>
-              <button onClick={() => moveDay(1)} aria-label="Sposta dopo"><ArrowDown size={16} /></button>
               <button onClick={duplicateDay} aria-label="Duplica"><Copy size={16} /></button>
               <button onClick={openEditDay} aria-label="Modifica"><Edit3 size={16} /></button>
               <button className="danger" onClick={deleteDay} aria-label="Elimina"><Trash2 size={16} /></button>
@@ -677,7 +674,7 @@ function PlanModal({ open, draft, setDraft, onClose, onSave, editing }: PlanModa
         <label className="full"><span>Personal trainer</span><input value={draft.trainerName} onChange={(event) => setDraft({ ...draft, trainerName: event.target.value })} placeholder="Facoltativo" /></label>
         <label><span>Data di inizio</span><input type="date" value={draft.startDate} onChange={(event) => setDraft({ ...draft, startDate: event.target.value })} /></label>
         <label><span>Data di fine</span><input type="date" value={draft.endDate} onChange={(event) => setDraft({ ...draft, endDate: event.target.value })} /></label>
-        <label><span>Durata prevista</span><NumericInput value={draft.durationWeeks} min={1} onChange={(value) => setDraft({ ...draft, durationWeeks: value })} /></label>
+        <label><span>Durata prevista (settimane) </span><NumericInput value={draft.durationWeeks} min={1} onChange={(value) => setDraft({ ...draft, durationWeeks: value })} /></label>
         <label className="full"><span>Note generali</span><textarea rows={3} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></label>
         <div className="modal-actions full"><button className="primary-button" disabled={!draft.name.trim()} onClick={onSave}>Salva scheda</button><button className="secondary-button" onClick={onClose}>Annulla</button></div>
       </div>
