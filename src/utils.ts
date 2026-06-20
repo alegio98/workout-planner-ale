@@ -187,7 +187,7 @@ export const makeEmptyExercise = (order: number): PlanDay['exercises'][number] =
   suggestedWeight: 0,
   setMode: 'standard',
   setTargets: createStandardTargets(3, 10, 0),
-  recoverySeconds: 60,
+  recoverySeconds: 0,
   technique: '',
   trainerNotes: '',
   order,

@@ -1,21 +1,19 @@
 {
-  "id": "./",
+  "id": "/workout-planner-ale/",
   "name": "Workout Planner",
   "short_name": "Workout",
   "description": "Gestisci le schede palestra, pianifica gli allenamenti e usa un timer rapido.",
   "lang": "it",
   "dir": "ltr",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/workout-planner-ale/",
+  "scope": "/workout-planner-ale/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#09070d",
   "theme_color": "#7c3aed",
-  "categories": [
-    "fitness",
-    "health",
-    "productivity"
-  ],
+  "prefer_related_applications": false,
+  "categories": ["fitness", "health", "productivity"],
   "icons": [
     {
       "src": "./icons/icon-192.png",

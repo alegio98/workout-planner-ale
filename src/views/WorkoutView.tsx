@@ -82,7 +82,7 @@ const emptyDraft = (): SessionExerciseDraft => ({
   plannedWeight: 0,
   setMode: 'standard',
   setTargets: standardTargets(3, 10, 0),
-  recoverySeconds: 60,
+  recoverySeconds: 0,
   technique: '',
   trainerNotes: '',
 })

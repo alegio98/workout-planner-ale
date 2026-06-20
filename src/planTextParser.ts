@@ -43,7 +43,7 @@ const createExercise = (name: string, repetitions: number[], trainerNotes: strin
     suggestedWeight: 0,
     setMode: isCustom ? 'custom' : 'standard',
     setTargets: isCustom ? setTargets : createStandardTargets(setTargets.length, setTargets[0]?.reps ?? 10, 0),
-    recoverySeconds: 60,
+    recoverySeconds: 0,
     technique: '',
     trainerNotes,
     order,
