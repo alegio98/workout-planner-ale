@@ -935,3 +935,23 @@ html.modal-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* v0.8.2 · correzione altezza PWA standalone su iOS */
+@media all and (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    html,
+    body,
+    #root,
+    .app-background,
+    .app-frame {
+      height: 100vh;
+      min-height: 100vh;
+    }
+
+    html,
+    body,
+    #root {
+      background: var(--surface);
+    }
+  }
+}
